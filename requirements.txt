@@ -1,2 +1,10 @@
+opencv-python
+pytesseract
+torch
+torchvision
+yolov8
+ultralytics
+streamlit
 ezdxf
 openpyxl
+pdf2image
