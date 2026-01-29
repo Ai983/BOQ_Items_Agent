@@ -108,7 +108,11 @@ def detect_scale_from_texts(texts: Iterable[str]) -> Optional[float]:
             denominator = float(match.group(2))
             if denominator == 0:
                 continue
-            return numerator / denominator
+            # Architectural notation like "Scale 1:100" means
+            # 1 unit on paper = 100 units in reality.
+            # We use the larger value as a pixels-per-foot proxy so that
+            # higher denominators result in larger scale factors.
+            return max(numerator, denominator)
     return None
 
 
@@ -264,12 +268,16 @@ class QuantityExtractor:
         return total_length_ft * self.wall_height
 
     def compute_partition_area(self, detections: Sequence[DetectedObject], scale: float) -> float:
-        area_px = 0.0
+        total_length_px = 0.0
         for detection in detections:
             if detection.label.lower() in self.partition_labels:
                 x1, y1, x2, y2 = detection.bbox
-                area_px += abs(x2 - x1) + abs(y2 - y1)
-        length_ft = area_px / scale
+                width = abs(x2 - x1)
+                height = abs(y2 - y1)
+                # Treat the longer bbox side as the partition run length
+                run_length_px = max(width, height)
+                total_length_px += run_length_px
+        length_ft = total_length_px / scale
         return length_ft * self.partition_height
 
     def compute_wall_segments_from_detections(self, detections: Sequence[DetectedObject]) -> List[WallSegment]:
@@ -494,13 +502,15 @@ def main() -> int:
             }
             for room in scaled_rooms
         ]
+        detection_wall_segments = extractor.compute_wall_segments_from_detections(all_detections)
+        all_debug_segments = list(all_wall_segments) + detection_wall_segments
         walls_debug = [
             {
                 "start": json.dumps(segment.start),
                 "end": json.dumps(segment.end),
                 "kind": segment.kind,
             }
-            for segment in all_wall_segments
+            for segment in all_debug_segments
         ]
         if rooms_debug:
             writer.export_debug_csv(output_path.with_name("rooms_debug.csv"), rooms_debug, rooms_debug[0].keys())

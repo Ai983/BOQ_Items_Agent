@@ -2,7 +2,6 @@ opencv-python
 pytesseract
 torch
 torchvision
-yolov8
 ultralytics
 streamlit
 ezdxf

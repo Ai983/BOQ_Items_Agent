@@ -1,47 +1,68 @@
-# BOQ Quantity Extraction Agent (CLI)
+## BOQ Quantity Extraction Agent (CLI)
 
-This repository includes a lightweight CLI that follows the BOQ extraction workflow for DWG/DXF layout plans.
-It detects closed room outlines, prompts for material assignments, and exports grouped quantities with
-traceable audit notes.
+CLI tool for extracting BOQ quantities from architectural layout PDFs or image plans.
+It uses OpenCV for contours, Tesseract OCR for room labels/scale text, and YOLOv8 for walls/partitions, then exports grouped quantities with audit trails.
 
-## Requirements
+### Requirements
 
-- Python 3.10+
-- Optional dependencies for DWG/DXF parsing and Excel export:
-  - `ezdxf`
+- **Python**: 3.10+
+- **Core libraries** (install in your own environment):
+  - `opencv-python`
+  - `pytesseract`
+  - `pdf2image`
   - `openpyxl`
+  - `ultralytics` (and its PyTorch dependencies)
 
-> **Note**: This environment does not ship with these libraries. Install them in your own environment
-> with network access before running the tool.
-
-## Usage
+Example installation:
 
 ```bash
-python boq_agent.py sample_plans/sample_layout.dwg \
-  --scale 1 \
-  --default-floor-material Tile \
-  --default-ceiling-material POP \
-  --partition-height 9 \
-  --wall-height 9 \
-  --output boq_output.xlsx
+pip install opencv-python pytesseract pdf2image openpyxl ultralytics
 ```
 
-If the scale cannot be auto-detected, the CLI will prompt for a drawing-units-per-foot scale factor.
-You can also pass `--scale` directly.
+> Tesseract itself must be installed on your OS (and available on PATH) for OCR to work.
 
-## Output
+### Basic usage
 
-The CLI produces a grouped BOQ table with columns:
+Process a PDF plan and export `boq_output.xlsx`:
 
-- Item Type
-- Material Type
-- Quantity
-- Unit
-- Audit
+```bash
+python3 boq_agent.py --input sample_plans/<test_plan>.pdf \
+  --default-floor-material Tile \
+  --default-ceiling-material POP \
+  --wall-finish-material Paint \
+  --partition-material Gypsum \
+  --wall-height 9 \
+  --partition-height 9 \
+  --yolo-model models/boq_yolov8.pt \
+  --output boq_output.xlsx \
+  --debug-csv
+```
 
-The `audit` column contains the traceable source (room name, layer, and scale) used for each quantity.
+Key options:
 
-## Notes on DWG parsing
+- `--input`: PDF or raster image plan.
+- `--dpi`: Render DPI for PDFs (default 300).
+- `--scale`: Override pixels-per-foot scale. If omitted, the agent tries to infer it from OCR:
+  - `Scale 1:100` style notes.
+  - Dimension text like `10'-0"`.
+- `--yolo-model`: Path to YOLOv8 `.pt` weights (walls/partitions).
+- `--partition-labels`, `--wall-labels`: Comma-separated YOLO class names to treat as partitions or walls.
+- `--debug-csv`: Also write `rooms_debug.csv` and `walls_debug.csv` in the same output folder.
 
-The sample plan is saved as AutoCAD 2018 DWG (`AC1032`). This format requires a DWG reader.
-Install `ezdxf` or convert the file to DXF before running.
+### Output
+
+The main BOQ table (`boq_output.xlsx` or CSV) has:
+
+- **Item Type**
+- **Material**
+- **Quantity**
+- **Unit**
+- **Audit**
+
+Rooms are detected from contours; areas and perimeters are scaled using pixels-per-foot.  
+Wall finish and partition quantities are computed from wall segments (Hough + YOLO) and YOLO partition runs respectively.
+
+When `--debug-csv` is enabled:
+
+- `rooms_debug.csv`: One row per detected room with polygon vertices and audit string.
+- `walls_debug.csv`: One row per wall/partition segment with start/end coordinates and kind.
