@@ -99,7 +99,6 @@ def point_in_polygon(point: Point, polygon: Sequence[Point]) -> bool:
             inside = not inside
     return inside
 
-
 def detect_scale_from_texts(texts: Iterable[str]) -> Optional[float]:
     for text in texts:
         match = SCALE_PATTERN.search(text)
